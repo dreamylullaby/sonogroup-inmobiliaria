@@ -1,0 +1,355 @@
+.property-detail {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.btn-back {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-back:hover {
+  background-color: var(--bg-light);
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.detail-title-section h1 {
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.detail-location {
+  color: var(--text-light);
+  font-size: 1.1rem;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-favorite {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--white);
+  border: 2px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-favorite:hover {
+  border-color: var(--accent-color);
+  background-color: rgba(226, 6, 19, 0.05);
+}
+
+.btn-favorite.active {
+  border-color: var(--accent-color);
+  background-color: rgba(226, 6, 19, 0.1);
+  color: var(--accent-vibrant);
+  font-weight: 700;
+}
+
+.btn-favorite svg {
+  flex-shrink: 0;
+}
+
+.detail-image-gallery {
+  width: 100%;
+  margin-bottom: 2rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.detail-main-image {
+  width: 100%;
+  height: 500px;
+  object-fit: cover;
+}
+
+.detail-content {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 2rem;
+}
+
+.detail-main {
+  background-color: var(--white);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.detail-price-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+}
+
+.detail-badge.venta {
+  background-color: var(--secondary-color);
+}
+
+.detail-badge.alquiler {
+  background-color: var(--blue-medium);
+}
+
+.detail-badge.reservada {
+  background-color: var(--blue-medium);
+}
+
+.detail-badge.vendida,
+.detail-badge.arrendada {
+  background-color: var(--secondary-color);
+}
+
+.detail-price {
+  font-family: var(--font-heading);
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  margin: 0;
+  letter-spacing: -1px;
+}
+
+.detail-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color);
+}
+
+.feature-icon svg {
+  flex-shrink: 0;
+}
+
+.feature-item strong {
+  display: block;
+  font-size: 1.25rem;
+  color: var(--text-color);
+}
+
+.feature-item p {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.detail-description {
+  margin-bottom: 2rem;
+}
+
+.detail-description h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.detail-description p {
+  line-height: 1.8;
+  color: var(--text-color);
+}
+
+.detail-services {
+  margin-bottom: 2rem;
+}
+
+.detail-services h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.detail-services ul {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.detail-services li {
+  color: var(--text-color);
+  padding: 0.5rem 0;
+}
+
+.detail-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.contact-card,
+.info-card {
+  background-color: var(--white);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.contact-card h3 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.contact-card p {
+  color: var(--text-light);
+  margin-bottom: 1.5rem;
+}
+
+.btn-contact {
+  width: 100%;
+  padding: 1rem;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  font-family: var(--font-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-contact:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(226, 6, 19, 0.3);
+}
+
+.btn-contact svg {
+  flex-shrink: 0;
+}
+
+.login-hint {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-light);
+}
+
+.login-hint a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.login-hint a:hover {
+  text-decoration: underline;
+}
+
+.info-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-item span {
+  color: var(--text-light);
+}
+
+.info-item strong {
+  color: var(--text-color);
+}
+
+@media (max-width: 1024px) {
+  .detail-content {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-sidebar {
+    order: -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-header {
+    flex-direction: column;
+  }
+
+  .detail-title-section h1 {
+    font-size: 1.5rem;
+  }
+
+  .detail-main-image {
+    height: 300px;
+  }
+
+  .detail-price {
+    font-size: 2rem;
+  }
+
+  .detail-features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .detail-main {
+    padding: 1.5rem;
+  }
+}
