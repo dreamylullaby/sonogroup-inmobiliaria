@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import './PropertyDetail.css'
@@ -13,26 +13,33 @@ const PropertyDetail = () => {
   const [isFavorite, setIsFavorite] = useState(false)
   const [showContactForm, setShowContactForm] = useState(false)
 
-  useEffect(() => {
-    fetchProperty()
-    if (user) {
-      checkFavorite()
+  const fetchProperty = useCallback(async () => {
+    if (!id || id === 'undefined') {
+      setLoading(false)
+      return
     }
-  }, [id, user])
-
-  const fetchProperty = async () => {
+    
     try {
       setLoading(true)
       const response = await axios.get(`/api/inmuebles/${id}`)
-      setProperty(response.data.inmueble)
+      
+      // El backend devuelve el objeto directamente, no envuelto
+      if (response.data) {
+        setProperty(response.data)
+      } else {
+        setProperty(null)
+      }
     } catch (error) {
       console.error('Error al cargar propiedad:', error)
+      setProperty(null)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  const checkFavorite = async () => {
+  const checkFavorite = useCallback(async () => {
+    if (!id || id === 'undefined' || !user) return
+    
     try {
       const response = await axios.get('/api/favoritos')
       const favorites = response.data.favoritos || []
@@ -40,7 +47,19 @@ const PropertyDetail = () => {
     } catch (error) {
       console.error('Error al verificar favoritos:', error)
     }
-  }
+  }, [id, user])
+
+  useEffect(() => {
+    if (id && id !== 'undefined') {
+      fetchProperty()
+    }
+  }, [id, fetchProperty])
+
+  useEffect(() => {
+    if (user && id && id !== 'undefined') {
+      checkFavorite()
+    }
+  }, [user, id, checkFavorite])
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -99,145 +118,208 @@ const PropertyDetail = () => {
 
   return (
     <div className="property-detail">
-      <button onClick={() => navigate(-1)} className="btn-back">
-        ← Volver
-      </button>
-
-      <div className="detail-header">
-        <div className="detail-title-section">
-          <h1>{property.titulo}</h1>
-          <p className="detail-location">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }}>
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
+      {/* Header con botón volver y acciones */}
+      <div className="detail-top-bar">
+        <button onClick={() => navigate(-1)} className="btn-back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
+        <div className="top-actions">
+          {user?.rol === 'admin' && (
+            <button 
+              onClick={() => navigate(`/editar-propiedad/${id}`)} 
+              className="btn-edit-admin"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar
+            </button>
+          )}
+          <button className="btn-share">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
-            {property.ubicacion}
-          </p>
-        </div>
-        <div className="detail-actions">
+            Compartir
+          </button>
           <button 
             onClick={toggleFavorite} 
-            className={`btn-favorite ${isFavorite ? 'active' : ''}`}
-            title={user ? (isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos') : 'Inicia sesión para guardar'}
+            className={`btn-favorite-top ${isFavorite ? 'active' : ''}`}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
-            {isFavorite ? 'Guardado' : 'Guardar'}
+            Guardar
           </button>
         </div>
       </div>
 
-      <div className="detail-image-gallery">
-        <img 
-          src={property.imagen || 'https://via.placeholder.com/800x500?text=Sin+Imagen'} 
-          alt={property.titulo}
-          className="detail-main-image"
-        />
+      {/* Título y ubicación */}
+      <div className="detail-header-info">
+        <h1>{property.descripcion || 'Propiedad'}</h1>
+        <div className="header-meta">
+          <span className="location-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            {property.ubicaciones?.municipio}, {property.ubicaciones?.departamento}
+          </span>
+          <span className="property-id">ID: {property.id_inmueble}</span>
+        </div>
+      </div>
+
+      {/* Galería de imágenes estilo grid */}
+      <div className="detail-image-gallery-grid">
+        <div className="main-image">
+          <img 
+            src={property.imagen || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=500&fit=crop'} 
+            alt={property.descripcion}
+          />
+        </div>
+        <div className="secondary-images">
+          <div className="secondary-image">
+            <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop" alt="Vista 2" />
+          </div>
+          <div className="secondary-image">
+            <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop" alt="Vista 3" />
+          </div>
+          <div className="secondary-image">
+            <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop" alt="Vista 4" />
+          </div>
+          <div className="secondary-image">
+            <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop" alt="Vista 5" />
+            <button className="btn-show-all">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              Mostrar todas las fotos
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="detail-content">
         <div className="detail-main">
           <div className="detail-price-section">
-            <span className={`detail-badge ${property.estado}`}>
-              {property.estado === 'venta' ? 'En Venta' : 'En Alquiler'}
+            <span className={`detail-badge ${property.tipo_operacion}`}>
+              {property.tipo_operacion === 'venta' ? 'En Venta' : 'En Arriendo'}
             </span>
-            <h2 className="detail-price">{formatPrice(property.precio)}</h2>
+            <h2 className="detail-price">{formatPrice(property.valor)}</h2>
           </div>
 
-          <div className="detail-features">
-            {property.habitaciones && (
-              <div className="feature-item">
-                <span className="feature-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                  </svg>
-                </span>
-                <div>
-                  <strong>{property.habitaciones}</strong>
-                  <p>Habitaciones</p>
-                </div>
-              </div>
-            )}
-            {property.banos && (
-              <div className="feature-item">
-                <span className="feature-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 6l-6 6 6 6"></path>
-                    <path d="M20 4v2.5c0 1.5-1 2.5-2.5 2.5H4"></path>
-                  </svg>
-                </span>
-                <div>
-                  <strong>{property.banos}</strong>
-                  <p>Baños</p>
-                </div>
-              </div>
-            )}
-            {property.area && (
-              <div className="feature-item">
-                <span className="feature-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="3" y1="9" x2="21" y2="9"></line>
-                    <line x1="9" y1="21" x2="9" y2="9"></line>
-                  </svg>
-                </span>
-                <div>
-                  <strong>{property.area} m²</strong>
-                  <p>Área</p>
-                </div>
-              </div>
-            )}
-            {property.tipo && (
-              <div className="feature-item">
-                <span className="feature-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  </svg>
-                </span>
-                <div>
-                  <strong>{property.tipo}</strong>
-                  <p>Tipo</p>
-                </div>
-              </div>
-            )}
+          {/* Información General */}
+          <div className="detail-info-grid">
+            <div className="info-item">
+              <strong>Tipo de Inmueble:</strong>
+              <span>{property.tipo_inmueble?.charAt(0).toUpperCase() + property.tipo_inmueble?.slice(1)}</span>
+            </div>
+            <div className="info-item">
+              <strong>Estado:</strong>
+              <span>{property.estado_inmueble?.charAt(0).toUpperCase() + property.estado_inmueble?.slice(1)}</span>
+            </div>
+            <div className="info-item">
+              <strong>Conservación:</strong>
+              <span>{property.estado_conservacion?.charAt(0).toUpperCase() + property.estado_conservacion?.slice(1)}</span>
+            </div>
+            <div className="info-item">
+              <strong>Estrato:</strong>
+              <span>{property.estrato}</span>
+            </div>
+            <div className="info-item">
+              <strong>Zona:</strong>
+              <span>{property.zona?.charAt(0).toUpperCase() + property.zona?.slice(1)}</span>
+            </div>
+            <div className="info-item">
+              <strong>Matrícula:</strong>
+              <span>{property.numero_matricula}</span>
+            </div>
           </div>
+
+          {/* Características del Inmueble */}
+          {property.caracteristicas && Object.keys(property.caracteristicas).length > 0 && (
+            <div className="detail-characteristics">
+              <h3>Características</h3>
+              <div className="characteristics-grid">
+                {Object.entries(property.caracteristicas).map(([key, value]) => {
+                  if (key === 'id_inmueble' || key === `id_${property.tipo_inmueble}` || value === null) return null
+                  
+                  const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                  
+                  return (
+                    <div key={key} className="char-item">
+                      <strong>{label}:</strong>
+                      <span>{typeof value === 'boolean' ? (value ? 'Sí' : 'No') : value}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="detail-description">
             <h3>Descripción</h3>
             <p>{property.descripcion || 'Sin descripción disponible'}</p>
           </div>
 
-          {property.servicios && (
+          {/* Servicios Públicos */}
+          {property.servicios_publicos && (
             <div className="detail-services">
-              <h3>Servicios</h3>
-              <ul>
-                {property.servicios.split(',').map((servicio, index) => (
-                  <li key={index}>✓ {servicio.trim()}</li>
-                ))}
-              </ul>
+              <h3>Servicios Públicos</h3>
+              <div className="services-grid">
+                {property.servicios_publicos.acueducto && <span className="service-badge">✓ Acueducto</span>}
+                {property.servicios_publicos.energia && <span className="service-badge">✓ Energía</span>}
+                {property.servicios_publicos.alcantarillado && <span className="service-badge">✓ Alcantarillado</span>}
+                {property.servicios_publicos.gas && <span className="service-badge">✓ Gas</span>}
+                {property.servicios_publicos.internet && <span className="service-badge">✓ Internet</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Ubicación Detallada */}
+          {property.ubicaciones && (
+            <div className="detail-location-info">
+              <h3>Ubicación</h3>
+              <div className="location-details">
+                <p><strong>Dirección:</strong> {property.ubicaciones.direccion}</p>
+                {property.ubicaciones.barrio_vereda && (
+                  <p><strong>Barrio/Vereda:</strong> {property.ubicaciones.barrio_vereda}</p>
+                )}
+                <p><strong>Municipio:</strong> {property.ubicaciones.municipio}</p>
+                <p><strong>Departamento:</strong> {property.ubicaciones.departamento}</p>
+                {property.ubicaciones.tipo_via && (
+                  <p><strong>Tipo de Vía:</strong> {property.ubicaciones.tipo_via}</p>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         <div className="detail-sidebar">
-          <div className="contact-card">
-            <h3>¿Interesado en esta propiedad?</h3>
-            <p>Contáctanos para más información</p>
-            <button onClick={handleContact} className="btn-contact">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-              </svg>
-              Contactar
-            </button>
-            {!user && (
-              <p className="login-hint">
-                <Link to="/login">Inicia sesión</Link> para contactar
-              </p>
-            )}
-          </div>
+          {/* Solo mostrar cuadro de contacto si NO es admin */}
+          {user?.rol !== 'admin' && (
+            <div className="contact-card">
+              <h3>¿Interesado en esta propiedad?</h3>
+              <p>Contáctanos para más información</p>
+              <button onClick={handleContact} className="btn-contact">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                Contactar
+              </button>
+              {!user && (
+                <p className="login-hint">
+                  <Link to="/login">Inicia sesión</Link> para contactar
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="info-card">
             <h4>Información adicional</h4>
@@ -247,7 +329,11 @@ const PropertyDetail = () => {
             </div>
             <div className="info-item">
               <span>Publicado:</span>
-              <strong>{new Date(property.fecha_publicacion).toLocaleDateString()}</strong>
+              <strong>{property.fecha_registro ? new Date(property.fecha_registro).toLocaleDateString('es-ES', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              }) : 'No disponible'}</strong>
             </div>
           </div>
         </div>

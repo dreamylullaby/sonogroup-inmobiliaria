@@ -88,11 +88,18 @@ router.get('/', verificarToken, verificarRol(['admin']), async (req, res) => {
             `)
             .order('fecha_solicitud', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            console.error('Error en propiedades-pendientes:', error);
+            throw error;
+        }
 
-        res.json({ propiedades: data });
+        res.json({ propiedades: data || [] });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error al obtener propiedades pendientes:', error);
+        res.status(500).json({ 
+            error: error.message,
+            details: error.details || 'Sin detalles adicionales'
+        });
     }
 });
 
@@ -100,6 +107,8 @@ router.get('/', verificarToken, verificarRol(['admin']), async (req, res) => {
 router.put('/:id/aprobar', verificarToken, verificarRol(['admin']), async (req, res) => {
     try {
         const { id } = req.params;
+
+        console.log('✅ Aprobando propiedad pendiente:', id);
 
         // Obtener la propiedad pendiente
         const { data: propiedadPendiente, error: errorGet } = await supabase
@@ -110,29 +119,71 @@ router.put('/:id/aprobar', verificarToken, verificarRol(['admin']), async (req, 
 
         if (errorGet) throw errorGet;
 
-        // Crear la propiedad en la tabla principal
-        const { data: nuevaPropiedad, error: errorInsert } = await supabase
+        // Parsear características si están en JSON
+        let caracteristicasObj = {};
+        try {
+            caracteristicasObj = typeof propiedadPendiente.caracteristicas === 'string' 
+                ? JSON.parse(propiedadPendiente.caracteristicas) 
+                : propiedadPendiente.caracteristicas || {};
+        } catch (e) {
+            console.error('Error al parsear características:', e);
+        }
+
+        // 1. Crear inmueble en tabla principal
+        const { data: nuevoInmueble, error: errorInmueble } = await supabase
             .from('inmuebles')
             .insert([{
                 id_usuario: propiedadPendiente.id_usuario,
-                titulo: propiedadPendiente.titulo,
+                valor: propiedadPendiente.precio,
+                estrato: caracteristicasObj.estrato || 3,
                 descripcion: propiedadPendiente.descripcion,
-                tipo: propiedadPendiente.tipo,
-                estado: propiedadPendiente.estado,
-                precio: propiedadPendiente.precio,
-                ubicacion: propiedadPendiente.ubicacion,
-                habitaciones: propiedadPendiente.habitaciones,
-                banos: propiedadPendiente.banos,
-                area: propiedadPendiente.area,
-                imagen: propiedadPendiente.imagen
+                numero_matricula: `MAT-${Date.now()}`,
+                tipo_operacion: caracteristicasObj.tipo_operacion || 'venta',
+                tipo_inmueble: propiedadPendiente.tipo,
+                estado_inmueble: propiedadPendiente.estado || 'usado',
+                zona: caracteristicasObj.zona || 'urbano',
+                estado_conservacion: caracteristicasObj.estado_conservacion || 'usado'
             }])
             .select()
             .single();
 
-        if (errorInsert) throw errorInsert;
+        if (errorInmueble) throw errorInmueble;
 
-        // Actualizar estado de la propiedad pendiente
-        const { error: errorUpdate } = await supabase
+        console.log('✅ Inmueble creado:', nuevoInmueble.id_inmueble);
+
+        // 2. Crear ubicación
+        if (caracteristicasObj.ubicacion_completa) {
+            await supabase
+                .from('ubicaciones')
+                .insert([{
+                    id_inmueble: nuevoInmueble.id_inmueble,
+                    ...caracteristicasObj.ubicacion_completa
+                }]);
+        }
+
+        // 3. Crear servicios
+        if (caracteristicasObj.servicios) {
+            await supabase
+                .from('servicios_publicos')
+                .insert([{
+                    id_inmueble: nuevoInmueble.id_inmueble,
+                    ...caracteristicasObj.servicios
+                }]);
+        }
+
+        // 4. Crear características específicas
+        if (caracteristicasObj.caracteristicas_especificas) {
+            const tabla = `${propiedadPendiente.tipo}s`;
+            await supabase
+                .from(tabla)
+                .insert([{
+                    id_inmueble: nuevoInmueble.id_inmueble,
+                    ...caracteristicasObj.caracteristicas_especificas
+                }]);
+        }
+
+        // 5. Actualizar estado de la propiedad pendiente
+        await supabase
             .from('propiedades_pendientes')
             .update({ 
                 estado_aprobacion: 'aprobado',
@@ -140,13 +191,14 @@ router.put('/:id/aprobar', verificarToken, verificarRol(['admin']), async (req, 
             })
             .eq('id_propiedad_pendiente', id);
 
-        if (errorUpdate) throw errorUpdate;
+        console.log('🎉 Propiedad aprobada y publicada exitosamente');
 
         res.json({
             mensaje: 'Propiedad aprobada y publicada',
-            propiedad: nuevaPropiedad
+            propiedad: nuevoInmueble
         });
     } catch (error) {
+        console.error('❌ Error al aprobar propiedad:', error);
         res.status(500).json({ error: error.message });
     }
 });

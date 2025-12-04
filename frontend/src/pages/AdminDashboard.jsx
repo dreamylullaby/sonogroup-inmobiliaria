@@ -325,6 +325,12 @@ const AdminDashboard = () => {
 }
 
 const PropiedadesPublicadasSection = ({ propiedades, onUpdate }) => {
+  const navigate = useNavigate()
+
+  const handleEditar = (id) => {
+    navigate(`/editar-propiedad/${id}`)
+  }
+
   const handleEliminar = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar esta propiedad?')) return
 
@@ -386,6 +392,16 @@ const PropiedadesPublicadasSection = ({ propiedades, onUpdate }) => {
                   <td>{new Date(propiedad.fecha_registro).toLocaleDateString()}</td>
                   <td>
                     <div className="table-actions">
+                      <button 
+                        className="btn-icon btn-edit" 
+                        title="Editar"
+                        onClick={() => handleEditar(propiedad.id_inmueble)}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
                       <button 
                         className="btn-icon btn-delete" 
                         title="Eliminar"
@@ -451,7 +467,7 @@ const PropiedadesPendientesSection = ({ propiedades, onUpdate }) => {
           {pendientes.map(propiedad => (
             <div key={propiedad.id_propiedad_pendiente} className="property-pending-card">
               <img 
-                src={propiedad.imagen || 'https://via.placeholder.com/400x300'} 
+                src={propiedad.imagen || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop'} 
                 alt={propiedad.titulo}
                 className="property-pending-image"
               />

@@ -1,4 +1,3 @@
-import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './PropertyCard.css'
@@ -30,11 +29,11 @@ const PropertyCard = ({ property, onRemoveFavorite, isFavorite = false }) => {
     <div className="property-card" onClick={handleViewDetails}>
       <div className="property-image">
         <img 
-          src={property.imagen || 'https://via.placeholder.com/400x300?text=Sin+Imagen'} 
-          alt={property.titulo}
+          src={property.imagen || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop'} 
+          alt={property.descripcion || property.titulo}
         />
-        <span className={`property-badge ${property.estado}`}>
-          {property.estado === 'venta' ? 'En Venta' : 'En Alquiler'}
+        <span className={`property-badge ${property.tipo_operacion || property.estado}`}>
+          {(property.tipo_operacion === 'venta' || property.estado === 'venta') ? 'En Venta' : 'En Alquiler'}
         </span>
         {isFavorite && user && (
           <button 
@@ -51,15 +50,15 @@ const PropertyCard = ({ property, onRemoveFavorite, isFavorite = false }) => {
       </div>
 
       <div className="property-content">
-        <h3 className="property-title">{property.titulo}</h3>
+        <h3 className="property-title">{property.descripcion?.substring(0, 60) || property.titulo}</h3>
         <p className="property-location">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '0.35rem', verticalAlign: 'middle' }}>
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          {property.ubicacion}
+          {property.ubicaciones?.municipio || property.ubicacion}
         </p>
-        <p className="property-price">{formatPrice(property.precio)}</p>
+        <p className="property-price">{formatPrice(property.valor || property.precio)}</p>
 
         <div className="property-features">
           {property.habitaciones && (
@@ -93,8 +92,8 @@ const PropertyCard = ({ property, onRemoveFavorite, isFavorite = false }) => {
         </div>
 
         <p className="property-description">
-          {property.descripcion?.substring(0, 100)}
-          {property.descripcion?.length > 100 ? '...' : ''}
+          {property.descripcion?.substring(60, 160) || ''}
+          {property.descripcion?.length > 160 ? '...' : ''}
         </p>
 
         <button className="btn-view-details" onClick={handleViewDetails}>

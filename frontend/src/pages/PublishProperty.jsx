@@ -4,11 +4,14 @@ import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import './PublishProperty.css'
 
-const PublishProperty = () => {
+const PublishProperty = ({ editMode = false, propertyId = null }) => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(editMode)
   const [error, setError] = useState('')
+  const [currentStep, setCurrentStep] = useState(1)
+  const totalSteps = 4
   
   // Datos comunes (tabla inmuebles)
   const [formDataComun, setFormDataComun] = useState({
@@ -134,10 +137,74 @@ const PublishProperty = () => {
     ]
   }
 
+  // Cargar datos si estamos en modo edición
+  useEffect(() => {
+    if (editMode && propertyId) {
+      loadPropertyData()
+    }
+  }, [editMode, propertyId])
+
+  const loadPropertyData = async () => {
+    try {
+      setLoadingData(true)
+      const response = await axios.get(`/api/inmuebles/${propertyId}`)
+      const property = response.data
+
+      // Cargar datos comunes
+      setFormDataComun({
+        valor: property.valor || '',
+        estrato: property.estrato?.toString() || '3',
+        descripcion: property.descripcion || '',
+        numero_matricula: property.numero_matricula || '',
+        tipo_operacion: property.tipo_operacion || 'venta',
+        tipo_inmueble: property.tipo_inmueble || 'casa',
+        estado_inmueble: property.estado_inmueble || 'nuevo',
+        zona: property.zona || 'urbano',
+        estado_conservacion: property.estado_conservacion || 'nuevo'
+      })
+
+      // Cargar ubicación
+      if (property.ubicaciones) {
+        setUbicacion({
+          direccion: property.ubicaciones.direccion || '',
+          barrio_vereda: property.ubicaciones.barrio_vereda || '',
+          municipio: property.ubicaciones.municipio || '',
+          departamento: property.ubicaciones.departamento || 'Colombia',
+          tipo_via: property.ubicaciones.tipo_via || 'Calle'
+        })
+      }
+
+      // Cargar servicios
+      if (property.servicios_publicos) {
+        setServicios({
+          acueducto: property.servicios_publicos.acueducto || false,
+          energia: property.servicios_publicos.energia || false,
+          alcantarillado: property.servicios_publicos.alcantarillado || false,
+          gas: property.servicios_publicos.gas || false,
+          internet: property.servicios_publicos.internet || false
+        })
+      }
+
+      // Cargar características específicas
+      if (property.caracteristicas) {
+        const { id_inmueble, [`id_${property.tipo_inmueble}`]: idTipo, ...resto } = property.caracteristicas
+        setCaracteristicasEspecificas(resto)
+      }
+
+    } catch (error) {
+      console.error('Error al cargar propiedad:', error)
+      setError('Error al cargar los datos de la propiedad')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
   // Resetear características específicas cuando cambia el tipo
   useEffect(() => {
-    setCaracteristicasEspecificas({})
-  }, [formDataComun.tipo_inmueble])
+    if (!editMode) {
+      setCaracteristicasEspecificas({})
+    }
+  }, [formDataComun.tipo_inmueble, editMode])
 
   const handleCommonChange = (e) => {
     const { name, value } = e.target
@@ -167,34 +234,67 @@ const PublishProperty = () => {
     setError('')
     setLoading(true)
 
-    // Validaciones
+    // Validaciones básicas
     if (!formDataComun.valor || !ubicacion.municipio) {
-      setError('Por favor completa los campos obligatorios')
+      setError('Por favor completa los campos obligatorios: Precio y Municipio')
       setLoading(false)
       return
     }
 
+    // Validar campos requeridos de características
+    const camposRequeridos = camposActuales.filter(c => c.required)
+    for (let campo of camposRequeridos) {
+      if (!caracteristicasEspecificas[campo.name] && caracteristicasEspecificas[campo.name] !== 0) {
+        setError(`Por favor completa el campo requerido: ${campo.label}`)
+        setLoading(false)
+        return
+      }
+    }
+
     try {
       const dataToSend = {
-        ...formDataComun,
         valor: parseFloat(formDataComun.valor),
         estrato: parseInt(formDataComun.estrato),
+        descripcion: formDataComun.descripcion,
         numero_matricula: formDataComun.numero_matricula || `MAT-${Date.now()}`,
+        tipo_operacion: formDataComun.tipo_operacion,
+        tipo_inmueble: formDataComun.tipo_inmueble,
+        estado_inmueble: formDataComun.estado_inmueble,
+        zona: formDataComun.zona,
+        estado_conservacion: formDataComun.estado_conservacion,
         ubicacion,
         servicios,
         caracteristicas: caracteristicasEspecificas
       }
 
-      // Endpoint según rol
-      const endpoint = user.rol === 'admin' ? '/api/inmuebles-admin' : '/api/inmuebles'
-      
-      await axios.post(endpoint, dataToSend)
+      console.log('📤 Datos a enviar:', JSON.stringify(dataToSend, null, 2))
+      console.log('📋 Características específicas:', caracteristicasEspecificas)
+      console.log('🔍 Modo edición:', editMode, 'ID:', propertyId)
 
-      alert(user.rol === 'admin' 
-        ? '¡Propiedad publicada exitosamente!' 
-        : '¡Propiedad enviada para revisión!')
-      
-      navigate('/')
+      let response
+      if (editMode && propertyId) {
+        // Modo edición: PUT
+        console.log('🔄 Enviando PUT a /api/inmuebles/' + propertyId)
+        response = await axios.put(`/api/inmuebles/${propertyId}`, dataToSend)
+        console.log('✅ Respuesta del servidor:', response.data)
+        alert('¡Propiedad actualizada exitosamente!')
+        navigate('/')
+      } else {
+        // Modo creación: POST
+        if (user.rol === 'admin') {
+          // Admin publica directamente
+          response = await axios.post('/api/inmuebles-admin', dataToSend)
+          console.log('✅ Respuesta del servidor:', response.data)
+          alert('¡Propiedad publicada exitosamente!')
+          navigate('/admin')
+        } else {
+          // Usuario normal envía para aprobación
+          response = await axios.post('/api/inmuebles', dataToSend)
+          console.log('✅ Respuesta del servidor:', response.data)
+          alert('¡Propiedad enviada para revisión! El administrador la revisará pronto.')
+          navigate('/')
+        }
+      }
     } catch (error) {
       console.error('Error completo:', error)
       console.error('Respuesta del servidor:', error.response?.data)
@@ -223,7 +323,72 @@ const PublishProperty = () => {
     return null
   }
 
+  if (loadingData) {
+    return (
+      <div className="loading">
+        <div className="loading-spinner"></div>
+        <p>Cargando datos de la propiedad...</p>
+      </div>
+    )
+  }
+
   const camposActuales = camposPorTipo[formDataComun.tipo_inmueble] || []
+
+  const nextStep = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1)
+      setError('')
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+      setError('')
+    }
+  }
+
+  const validateStep = () => {
+    switch (currentStep) {
+      case 1:
+        if (!formDataComun.tipo_inmueble || !formDataComun.tipo_operacion) {
+          setError('Por favor selecciona el tipo de inmueble y operación')
+          return false
+        }
+        break
+      case 2:
+        if (!formDataComun.valor) {
+          setError('Por favor ingresa el precio')
+          return false
+        }
+        break
+      case 3:
+        if (!ubicacion.municipio) {
+          setError('Por favor ingresa el municipio')
+          return false
+        }
+        break
+      case 4:
+        // Validar campos requeridos específicos
+        const camposRequeridos = camposActuales.filter(c => c.required)
+        for (let campo of camposRequeridos) {
+          if (!caracteristicasEspecificas[campo.name]) {
+            setError(`Por favor completa el campo: ${campo.label}`)
+            return false
+          }
+        }
+        break
+      default:
+        break
+    }
+    return true
+  }
+
+  const handleNext = () => {
+    if (validateStep()) {
+      nextStep()
+    }
+  }
 
   return (
     <div className="publish-property-page">
@@ -234,14 +399,36 @@ const PublishProperty = () => {
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg>
-            Publicar Propiedad
+            {editMode ? 'Editar Propiedad' : 'Publicar Propiedad'}
           </h1>
           <p>
-            {user?.rol === 'admin' 
-              ? 'Completa el formulario para publicar la propiedad inmediatamente'
-              : 'Completa el formulario y envíalo para revisión del administrador'
+            {editMode 
+              ? 'Modifica los datos de la propiedad'
+              : (user?.rol === 'admin' 
+                  ? 'Completa el formulario para publicar la propiedad inmediatamente'
+                  : 'Completa el formulario y envíalo para revisión del administrador')
             }
           </p>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="progress-container">
+          <div className="progress-steps">
+            {[1, 2, 3, 4].map((step) => (
+              <div key={step} className={`progress-step ${currentStep >= step ? 'active' : ''} ${currentStep === step ? 'current' : ''}`}>
+                <div className="step-circle">{step}</div>
+                <div className="step-label">
+                  {step === 1 && 'Tipo'}
+                  {step === 2 && 'Detalles'}
+                  {step === 3 && 'Ubicación'}
+                  {step === 4 && 'Características'}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${(currentStep / totalSteps) * 100}%` }}></div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="publish-form">
@@ -256,46 +443,52 @@ const PublishProperty = () => {
             </div>
           )}
 
-          {/* INFORMACIÓN BÁSICA */}
-          <div className="form-section">
-            <h3>Información Básica</h3>
+          {/* PASO 1: TIPO DE INMUEBLE */}
+          {currentStep === 1 && (
+          <div className="form-section step-content">
+            <h3>Tipo de Inmueble y Operación</h3>
             
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="tipo_inmueble">Tipo de Inmueble *</label>
-                <select
-                  id="tipo_inmueble"
-                  name="tipo_inmueble"
-                  value={formDataComun.tipo_inmueble}
-                  onChange={handleCommonChange}
-                  disabled={loading}
-                  required
-                >
-                  <option value="casa">Casa</option>
-                  <option value="apartamento">Apartamento</option>
-                  <option value="apartaestudio">Apartaestudio</option>
-                  <option value="local">Local</option>
-                  <option value="bodega">Bodega</option>
-                  <option value="finca">Finca</option>
-                  <option value="lote">Lote</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="tipo_operacion">Tipo de Operación *</label>
-                <select
-                  id="tipo_operacion"
-                  name="tipo_operacion"
-                  value={formDataComun.tipo_operacion}
-                  onChange={handleCommonChange}
-                  disabled={loading}
-                  required
-                >
-                  <option value="venta">Venta</option>
-                  <option value="arriendo">Arriendo</option>
-                </select>
-              </div>
+            <div className="form-group">
+              <label htmlFor="tipo_inmueble">¿Qué tipo de inmueble deseas publicar? *</label>
+              <select
+                id="tipo_inmueble"
+                name="tipo_inmueble"
+                value={formDataComun.tipo_inmueble}
+                onChange={handleCommonChange}
+                disabled={loading}
+                required
+              >
+                <option value="casa">Casa</option>
+                <option value="apartamento">Apartamento</option>
+                <option value="apartaestudio">Apartaestudio</option>
+                <option value="local">Local</option>
+                <option value="bodega">Bodega</option>
+                <option value="finca">Finca</option>
+                <option value="lote">Lote</option>
+              </select>
             </div>
+
+            <div className="form-group">
+              <label htmlFor="tipo_operacion">¿Es para venta o arriendo? *</label>
+              <select
+                id="tipo_operacion"
+                name="tipo_operacion"
+                value={formDataComun.tipo_operacion}
+                onChange={handleCommonChange}
+                disabled={loading}
+                required
+              >
+                <option value="venta">Venta</option>
+                <option value="arriendo">Arriendo</option>
+              </select>
+            </div>
+          </div>
+          )}
+
+          {/* PASO 2: DETALLES BÁSICOS */}
+          {currentStep === 2 && (
+          <div className="form-section step-content">
+            <h3>Detalles Básicos</h3>
 
             <div className="form-group">
               <label htmlFor="valor">Precio *</label>
@@ -359,26 +552,26 @@ const PublishProperty = () => {
               </div>
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="estrato">Estrato</label>
-                <select
-                  id="estrato"
-                  name="estrato"
-                  value={formDataComun.estrato}
-                  onChange={handleCommonChange}
-                  disabled={loading}
-                >
-                  {[1, 2, 3, 4, 5, 6].map(e => (
-                    <option key={e} value={e}>{e}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="form-group">
+              <label htmlFor="estrato">Estrato</label>
+              <select
+                id="estrato"
+                name="estrato"
+                value={formDataComun.estrato}
+                onChange={handleCommonChange}
+                disabled={loading}
+              >
+                {[1, 2, 3, 4, 5, 6].map(e => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </select>
             </div>
           </div>
+          )}
 
-          {/* UBICACIÓN */}
-          <div className="form-section">
+          {/* PASO 3: UBICACIÓN Y SERVICIOS */}
+          {currentStep === 3 && (
+          <div className="form-section step-content">
             <h3>Ubicación</h3>
             
             <div className="form-row">
@@ -422,11 +615,8 @@ const PublishProperty = () => {
                 disabled={loading}
               />
             </div>
-          </div>
 
-          {/* SERVICIOS PÚBLICOS */}
-          <div className="form-section">
-            <h3>Servicios Públicos</h3>
+            <h4 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Servicios Públicos</h4>
             <div className="features-grid">
               {Object.keys(servicios).map(servicio => (
                 <label key={servicio} className="feature-checkbox">
@@ -442,98 +632,207 @@ const PublishProperty = () => {
               ))}
             </div>
           </div>
+          )}
 
-          {/* CARACTERÍSTICAS ESPECÍFICAS */}
-          <div className="form-section">
+          {/* PASO 4: CARACTERÍSTICAS ESPECÍFICAS */}
+          {currentStep === 4 && (
+          <div className="form-section step-content">
             <h3>Características de {formDataComun.tipo_inmueble.charAt(0).toUpperCase() + formDataComun.tipo_inmueble.slice(1)}</h3>
             
-            {camposActuales.map(campo => (
-              <div key={campo.name} className="form-group">
-                <label htmlFor={campo.name}>
-                  {campo.label} {campo.required && '*'}
-                </label>
-                
-                {campo.type === 'select' ? (
-                  <select
-                    id={campo.name}
-                    name={campo.name}
-                    value={caracteristicasEspecificas[campo.name] || ''}
-                    onChange={handleEspecificasChange}
-                    disabled={loading}
-                    required={campo.required}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {campo.options.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                ) : campo.type === 'checkbox' ? (
-                  <label className="feature-checkbox">
-                    <input
-                      type="checkbox"
-                      name={campo.name}
-                      checked={caracteristicasEspecificas[campo.name] || false}
-                      onChange={handleEspecificasChange}
-                      disabled={loading}
-                    />
-                    <span>Sí</span>
-                  </label>
-                ) : campo.type === 'textarea' ? (
-                  <textarea
-                    id={campo.name}
-                    name={campo.name}
-                    value={caracteristicasEspecificas[campo.name] || ''}
-                    onChange={handleEspecificasChange}
-                    disabled={loading}
-                    rows="3"
-                    required={campo.required}
-                  />
-                ) : (
-                  <input
-                    type={campo.type}
-                    id={campo.name}
-                    name={campo.name}
-                    value={caracteristicasEspecificas[campo.name] || ''}
-                    onChange={handleEspecificasChange}
-                    disabled={loading}
-                    step={campo.step}
-                    required={campo.required}
-                  />
-                )}
+            <div className="characteristics-grid">
+              {/* Campos numéricos principales */}
+              <div className="char-group">
+                <h4>Dimensiones y Áreas</h4>
+                {camposActuales
+                  .filter(c => (c.type === 'number' && (c.name.includes('area') || c.name.includes('metros') || c.name.includes('frente') || c.name.includes('fondo') || c.name.includes('altura'))))
+                  .map(campo => (
+                    <div key={campo.name} className="form-group compact">
+                      <label htmlFor={campo.name}>
+                        {campo.label} {campo.required && '*'}
+                      </label>
+                      <input
+                        type={campo.type}
+                        id={campo.name}
+                        name={campo.name}
+                        value={caracteristicasEspecificas[campo.name] || ''}
+                        onChange={handleEspecificasChange}
+                        disabled={loading}
+                        step={campo.step}
+                        required={campo.required}
+                      />
+                    </div>
+                  ))}
               </div>
-            ))}
-          </div>
 
-          <div className="form-actions">
+              {/* Campos de conteo */}
+              <div className="char-group">
+                <h4>Espacios</h4>
+                {camposActuales
+                  .filter(c => (c.type === 'number' && (c.name.includes('habitaciones') || c.name.includes('banos') || c.name.includes('pisos') || c.name.includes('anos') || c.name.includes('torre') || c.name.includes('administracion'))))
+                  .map(campo => (
+                    <div key={campo.name} className="form-group compact">
+                      <label htmlFor={campo.name}>
+                        {campo.label} {campo.required && '*'}
+                      </label>
+                      <input
+                        type={campo.type}
+                        id={campo.name}
+                        name={campo.name}
+                        value={caracteristicasEspecificas[campo.name] || ''}
+                        onChange={handleEspecificasChange}
+                        disabled={loading}
+                        step={campo.step}
+                        required={campo.required}
+                      />
+                    </div>
+                  ))}
+              </div>
+
+              {/* Campos de selección */}
+              {camposActuales.filter(c => c.type === 'select').length > 0 && (
+                <div className="char-group full-width">
+                  <h4>Características Adicionales</h4>
+                  <div className="select-grid">
+                    {camposActuales
+                      .filter(c => c.type === 'select')
+                      .map(campo => (
+                        <div key={campo.name} className="form-group compact">
+                          <label htmlFor={campo.name}>
+                            {campo.label} {campo.required && '*'}
+                          </label>
+                          <select
+                            id={campo.name}
+                            name={campo.name}
+                            value={caracteristicasEspecificas[campo.name] || ''}
+                            onChange={handleEspecificasChange}
+                            disabled={loading}
+                            required={campo.required}
+                          >
+                            <option value="">Seleccionar...</option>
+                            {campo.options.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Checkboxes */}
+              {camposActuales.filter(c => c.type === 'checkbox').length > 0 && (
+                <div className="char-group full-width">
+                  <h4>Amenidades</h4>
+                  <div className="amenities-grid">
+                    {camposActuales
+                      .filter(c => c.type === 'checkbox')
+                      .map(campo => (
+                        <label key={campo.name} className="feature-checkbox">
+                          <input
+                            type="checkbox"
+                            name={campo.name}
+                            checked={caracteristicasEspecificas[campo.name] || false}
+                            onChange={handleEspecificasChange}
+                            disabled={loading}
+                          />
+                          <span>{campo.label}</span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Campos de texto y textarea */}
+              {camposActuales.filter(c => c.type === 'text' || c.type === 'textarea').length > 0 && (
+                <div className="char-group full-width">
+                  <h4>Información Adicional</h4>
+                  {camposActuales
+                    .filter(c => c.type === 'text' || c.type === 'textarea')
+                    .map(campo => (
+                      <div key={campo.name} className="form-group">
+                        <label htmlFor={campo.name}>
+                          {campo.label} {campo.required && '*'}
+                        </label>
+                        {campo.type === 'textarea' ? (
+                          <textarea
+                            id={campo.name}
+                            name={campo.name}
+                            value={caracteristicasEspecificas[campo.name] || ''}
+                            onChange={handleEspecificasChange}
+                            disabled={loading}
+                            rows="3"
+                            required={campo.required}
+                          />
+                        ) : (
+                          <input
+                            type={campo.type}
+                            id={campo.name}
+                            name={campo.name}
+                            value={caracteristicasEspecificas[campo.name] || ''}
+                            onChange={handleEspecificasChange}
+                            disabled={loading}
+                            required={campo.required}
+                          />
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+          )}
+
+          {/* Navigation Buttons */}
+          <div className="form-navigation">
             <button 
               type="button" 
-              className="btn-cancel"
-              onClick={() => navigate('/')}
+              className="btn-back"
+              onClick={currentStep === 1 ? () => navigate('/') : prevStep}
               disabled={loading}
             >
-              Cancelar
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              {currentStep === 1 ? 'Cancelar' : 'Anterior'}
             </button>
-            <button 
-              type="submit" 
-              className="btn-submit"
-              disabled={loading}
-            >
-              {loading ? (
-                user?.rol === 'admin' ? 'Publicando...' : 'Enviando...'
-              ) : (
-                <>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                  </svg>
-                  {user?.rol === 'admin' ? 'Publicar Propiedad' : 'Enviar para Revisión'}
-                </>
-              )}
-            </button>
+
+            {currentStep < totalSteps ? (
+              <button 
+                type="button" 
+                className="btn-next"
+                onClick={handleNext}
+                disabled={loading}
+              >
+                Siguiente
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                className="btn-submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  user?.rol === 'admin' ? 'Publicando...' : 'Enviando...'
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    {editMode ? 'Actualizar' : (user?.rol === 'admin' ? 'Publicar' : 'Enviar')}
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
-          {user?.rol !== 'admin' && (
+          {!editMode && user?.rol !== 'admin' && (
             <div className="form-note">
               <p>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }}>
