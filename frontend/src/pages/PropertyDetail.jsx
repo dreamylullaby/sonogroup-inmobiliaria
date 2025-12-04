@@ -6,7 +6,7 @@ import './PropertyDetail.css'
 
 const PropertyDetail = () => {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [property, setProperty] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -38,14 +38,33 @@ const PropertyDetail = () => {
   }, [id])
 
   const checkFavorite = useCallback(async () => {
-    if (!id || id === 'undefined' || !user) return
+    // Solo verificar favoritos si hay un usuario autenticado
+    if (!user || !id || id === 'undefined') {
+      setIsFavorite(false)
+      return
+    }
+    
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setIsFavorite(false)
+      return
+    }
     
     try {
-      const response = await axios.get('/api/favoritos')
+      const response = await axios.get('/api/favoritos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       const favorites = response.data.favoritos || []
       setIsFavorite(favorites.some(f => f.id_inmueble === parseInt(id)))
     } catch (error) {
-      console.error('Error al verificar favoritos:', error)
+      // Si es 401, el usuario no está autenticado o el token expiró
+      if (error.response?.status === 401) {
+        setIsFavorite(false)
+        // Silenciar el error 401 ya que es esperado cuando no hay sesión válida
+      }
+      // No mostrar otros errores en consola para evitar ruido
     }
   }, [id, user])
 
@@ -56,10 +75,20 @@ const PropertyDetail = () => {
   }, [id, fetchProperty])
 
   useEffect(() => {
-    if (user && id && id !== 'undefined') {
-      checkFavorite()
+    // Solo verificar favoritos después de que la autenticación haya terminado de cargar
+    // Y verificar que realmente haya un token válido
+    if (!authLoading && user && id && id !== 'undefined') {
+      const token = localStorage.getItem('token')
+      // Solo llamar checkFavorite si hay un token
+      if (token && token.length > 20) {
+        checkFavorite()
+      } else {
+        setIsFavorite(false)
+      }
+    } else {
+      setIsFavorite(false)
     }
-  }, [user, id, checkFavorite])
+  }, [user, id, checkFavorite, authLoading])
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -68,15 +97,32 @@ const PropertyDetail = () => {
     }
 
     try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login')
+        return
+      }
+
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+
       if (isFavorite) {
-        await axios.delete(`/api/favoritos/${id}`)
+        await axios.delete(`/api/favoritos/${id}`, config)
         setIsFavorite(false)
       } else {
-        await axios.post('/api/favoritos', { id_inmueble: id })
+        await axios.post('/api/favoritos', { id_inmueble: id }, config)
         setIsFavorite(true)
       }
     } catch (error) {
-      alert('Error al actualizar favoritos: ' + error.response?.data?.error)
+      if (error.response?.status === 401) {
+        alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.')
+        navigate('/login')
+      } else {
+        alert('Error al actualizar favoritos: ' + error.response?.data?.error)
+      }
     }
   }
 
@@ -358,9 +404,14 @@ const ContactModal = ({ property, onClose }) => {
     setLoading(true)
 
     try {
+      const token = localStorage.getItem('token')
       await axios.post('/api/contactos', {
         id_inmueble: property.id_inmueble,
         mensaje: message
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       alert('Mensaje enviado exitosamente')
       onClose()
